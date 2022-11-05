@@ -1,0 +1,105 @@
+---
+title: "Markdown"
+author: "Ji"
+date: "2022-11-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Prediction Assignment Writeup\
+### Introduction\
+Goal of the project: \
+1. Use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise ("classe" variable in the training set).\
+2. Use model to predict the testing data.\
+
+### Data source\
+Training dataset:\
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv    
+Testing dataset:\
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv    
+
+### Data cleaning\
+Load library, create file path and download data. Read the data, make blank data appear as NA.\
+```{r}
+library(caret)
+library(ggplot2)
+
+if(!file.exists("./raw_data")){
+  dir.create("./raw_data")
+}
+url1<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url1, "./raw_data/training.csv")
+download.file(url2, "./raw_data/testing.csv")
+training<-read.csv("./raw_data/training.csv",na.strings="")
+testing<-read.csv("./raw_data/testing.csv",na.strings="")
+str(training)
+```
+Training data is 19622 observations of 160 variables. A lot of columns contains missing values. Some columns has the string "NA" when the data is missing. \
+To deal with missing values, the string "NA" is first replaced by NA. Then, columns contains NA are removed from the data. The same cleaning steps are also applied to the testing data.\
+```{r}
+#replace "NA" with NA
+training[training=="NA"]<-NA
+#analyze NA
+na_count<-table(colSums(is.na(training)),colnames(training))
+#100 columns has 19216 NA while 60 columns has 0 NA
+sum(colSums(is.na(training))==19216)
+sum(colSums(is.na(training))==0)
+#remove columns with 19216 NA
+training_v1<-training[, colSums(is.na(training)) == 0]
+#remove column 1-7
+training_v1<-training_v1[,8:60]
+
+#do the same to the testing data
+testing[testing=="NA"]<-NA
+testing_v1<-testing[, colSums(is.na(testing)) == 0]
+testing_v1<-testing_v1[,8:60]
+```
+There are 100 columns in the training data, each has 19216 missing observations. 60 columns in the training data has 0 missing observations. The 100 columns are removed from the training data, which reduced the variables to 60. \
+In addition, column 1-7 are not useful information, so they are also removed from both the training and testing data. There are altogether 52 possible variables for the prediction of Classe.\
+
+### Desicion tree model\
+This model building is a classification problem. So tree models would be very helpful. There are multiple variables to choose from, so a cross validation should be used for model selection.\
+A K-fold cross validation with K = 10 is used in this model building. The average accuracy of the finla model is 0.506, which is poor.\
+```{r}
+set.seed(100)
+# value of K equal to 10
+train_control <- trainControl(method = "cv", number = 10)
+tree_model<-train(classe ~ ., method="rpart", data=training_v1, 
+                  trControl = train_control)
+print(tree_model) #average accuracy=0.506, poor
+```
+
+### Random forest model\
+For better model selection, a random forest model is built. Random forest can do randomization of both variables and samples, so it is more powerful for model selection. There is no need to do cross validation because random sampling is already contained in the random forest idea.\
+```{r}
+#random forest model, no need to do CV
+rf_model <- train(classe ~ ., data = training_v1, method = "rf") #this will take some time
+print(rf_model)
+```
+The random forest model has an accuracy of 0.99 with mtry = 2. This is a very high accuracy. The model is reliable, much better than the result of decision tree model.\
+
+### Prediction on the testing data\
+```{r}
+#tree model
+predict_tree<-predict(tree_model,newdata = testing_v1)
+print("Prediction of tree model:")
+predict_tree
+#rf model
+pred_rf <- predict(rf_model, testing_v1)
+print("Prediction of rf model:")
+pred_rf
+```
+
+### Conclusion\
+1. The accuracy of decision tree model with 10-fold cross validation is 0.506.\
+2. The accuracy of random forest model is 0.99.\
+3. The prediction of the testing data using random forest model is
+B A B A A E D B A A B C B A E E A B B B.
+
+
+
+
